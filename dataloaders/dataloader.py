@@ -48,6 +48,7 @@ class custom_dataset(Dataset):
 		key = str(int(self.images[idx].split('.')[0]))
 		landmarks = self.landmark_data[key]['face_landmarks']
 		landmarks = torch.tensor(landmarks, dtype=torch.float32)
+		print('landmarks: ', landmarks.shape)
 		#normalize landmarks
 		landmarks[..., 0] = landmarks[..., 0] / og_w
 		landmarks[..., 1] = landmarks[..., 1] / og_h

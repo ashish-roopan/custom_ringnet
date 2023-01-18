@@ -1,3 +1,4 @@
+import os
 import cv2
 import random
 import numpy as np
@@ -10,14 +11,19 @@ from torchvision import models
 
 from models.fc import Fc
 from models.Resnet_encoder import Encoder
+from models.deca_encoder import ResnetEncoder
 from models.FLAME import FLAME
-from util.helper import Helper
-from util.render import Renderer
+from utils.helper import Helper
+from utils.render import Renderer
+from utils.util import copy_state_dict
 from models.decoder import Decoder
 from dataloaders.dataloader import get_dataloader
+from dataloaders.deca_dataloader import get_dataloader
 from scripts.train import train_epoch
-from util.debug_disp import Debug_diplay
-from configs.config import cfg as model_cfg
+from scripts.validate import valid_epoch
+from utils.debug_disp import Debug_diplay
+from configs.config import cfg 
+from losses.adaptive_wing_loss import AdaptiveWingLoss
 
 import wandb
 wandb.init(project="cloth_project")
@@ -53,7 +59,7 @@ args = parse_args()
 deterministic(args.seed)
 Render = Renderer(args.device)
 helper = Helper(args.device)
-flame = FLAME(model_cfg.model).to(args.device)
+flame = FLAME(cfg.model).to(args.device)
 
 renderer = Render.create_render()
 debug = Debug_diplay(args.device, flame, helper, renderer)
@@ -63,9 +69,21 @@ debug_disp = debug.debug_disp
 data_dir = args.data_dir
 train_dataloader = get_dataloader(data_dir , batch_size=args.batch_size, num_images=args.num_images, split='train')
 # valid_dataloader = get_dataloader(data_dir + 'valid_set/', batch_size=args.batch_size, split='valid')
+test_dataloader = get_dataloader(data_dir + 'test_set/', batch_size=args.batch_size, split='test')
 
 #.           Prepare Model                    
-model = Encoder()
+# model = Encoder()
+n_params = 236
+model = ResnetEncoder(outsize=n_params) 
+
+# resume model
+model_path = cfg.pretrained_modelpath
+if os.path.exists(model_path):
+    print(f'trained model found. load {model_path}')
+    checkpoint = torch.load(model_path)
+    print(checkpoint.keys())
+    copy_state_dict(model.state_dict(), checkpoint['E_flame'])
+   
 decoder = Decoder(device=args.device)
 model = model.to(args.device)
 
@@ -77,11 +95,12 @@ momentum = 0.9
 weight_decay = 0.0
 epochs = args.num_epochs
 optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.00001, steps_per_epoch=len(train_dataloader), epochs=epochs)
+# scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.000001, steps_per_epoch=len(train_dataloader), epochs=epochs)
 # scheduler = scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[600, 900, 1500, 2000], gamma=0.1)
-# scheduler = None
-criteria = torch.nn.SmoothL1Loss()
+scheduler = None
+# criteria = torch.nn.SmoothL1Loss()
 # criteria = torch.nn.MSELoss()
+criteria = AdaptiveWingLoss()
 
 
 if args.load_model:
@@ -107,14 +126,22 @@ wandb.config = {
 #.                      Training Loop                       
 for epoch in range(epochs):
     train_loss = train_epoch(model, decoder, optimizer, train_dataloader, criteria, scheduler, args.device, wandb)
+    test_loss = valid_epoch(model, decoder, test_dataloader, criteria, args.device, wandb)
 
     avg_train_loss = train_loss / len(train_dataloader)
-    print(f'Epoch:{start_epoch + epoch} Training Loss:{avg_train_loss}')
+    avg_test_loss = test_loss / len(test_dataloader)
+    print(f'Epoch:{start_epoch + epoch} Training Loss:{avg_train_loss} Test Loss:{avg_test_loss}')
 
     ## debug display
-    if args.debug and epoch % 10 == 0:
-        train_debug_disp = debug_disp(model, train_dataloader)
-        cv2.imshow('train', train_debug_disp)
+    if args.debug and epoch % 1 == 0:
+        try:
+            train_debug_disp = debug_disp(model, train_dataloader)
+            cv2.imshow('train', train_debug_disp)
+            test_debug_disp = debug_disp(model, test_dataloader)
+            cv2.imshow('test', test_debug_disp)
+        except:
+            cv2.imshow('test', np.zeros((256, 256, 3), dtype=np.uint8))
+            cv2.imshow('train', np.zeros((256, 256, 3), dtype=np.uint8))
         cv2.waitKey(1)
 
     

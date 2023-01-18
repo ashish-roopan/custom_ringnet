@@ -21,7 +21,8 @@ class Decoder():
 
 		landmarks2d = landmarks2d*image_size/2 + image_size/2
 		
-		return vertices, landmarks2d/256
+		return vertices, landmarks2d/image_size
+		# return vertices, landmarks2d
 
 	def batch_orth_proj(self, X, camera):
 		''' orthgraphic projection

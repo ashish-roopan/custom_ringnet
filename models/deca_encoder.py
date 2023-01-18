@@ -19,6 +19,40 @@ import torch
 import torch.nn.functional as F
 from . import resnet
 
+import pickle
+import sys
+sys.path.append('../')
+from configs.config import cfg
+
+import numpy as np
+import torch.nn as nn
+import torch
+import torch.nn.functional as F
+from . import resnet
+
+# class ResnetEncoder(nn.Module):
+#     def __init__(self, outsize, last_op=None):
+#         super(ResnetEncoder, self).__init__()
+#         feature_size = 2048
+#         self.encoder = resnet.load_ResNet50Model() #out: 2048
+#         ### regressor
+#         self.layers = nn.Sequential(
+#             nn.Linear(feature_size, 1024),
+#             nn.ReLU(),
+#             nn.Linear(1024, outsize)
+#         )
+#         self.last_op = last_op
+
+#     def forward(self, inputs):
+#         features = self.encoder(inputs)
+#         parameters = self.layers(features)
+#         if self.last_op:
+#             parameters = self.last_op(parameters)
+#         return parameters
+
+
+
+
 class ResnetEncoder(nn.Module):
     def __init__(self, outsize, last_op=None):
         super(ResnetEncoder, self).__init__()
@@ -30,11 +64,25 @@ class ResnetEncoder(nn.Module):
             nn.ReLU(),
             nn.Linear(1024, outsize)
         )
-        self.last_op = last_op
+        self.param_dict = {i:cfg.model.get('n_' + i) for i in cfg.model.param_list}
 
     def forward(self, inputs):
         features = self.encoder(inputs)
         parameters = self.layers(features)
-        if self.last_op:
-            parameters = self.last_op(parameters)
-        return parameters
+        codedict = self.decompose_code(parameters, self.param_dict)
+            
+        return codedict['cam'], codedict['pose'], codedict['shape'], codedict['exp']
+
+    def decompose_code(self, code, num_dict):
+        ''' Convert a flattened parameter vector to a dictionary of parameters
+        code_dict.keys() = ['shape', 'tex', 'exp', 'pose', 'cam', 'light']
+        '''
+        code_dict = {}
+        start = 0
+        for key in num_dict:
+            end = start+int(num_dict[key])
+            code_dict[key] = code[:, start:end]
+            start = end
+            if key == 'light':
+                code_dict[key] = code_dict[key].reshape(code_dict[key].shape[0], 9, 3)
+        return code_dict
