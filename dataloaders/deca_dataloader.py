@@ -170,4 +170,4 @@ def get_dataloader(data_dir, batch_size, split, num_images=None):
 	dataset = custom_dataset(root_dir=data_dir, transform=image_transforms[split], index=index)
 	dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=10)
 
-	return dataloader
+	return dataloader, dataset
