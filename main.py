@@ -67,7 +67,7 @@ debug_disp = debug.debug_disp
 
 #.               Prepare Data                 
 data_dir = args.data_dir
-train_dataloader, train_dataset = get_dataloader(data_dir , batch_size=args.batch_size, num_images=args.num_images, split='train')
+train_dataloader, train_dataset = get_dataloader(data_dir  , batch_size=args.batch_size, num_images=args.num_images, split='train')
 # valid_dataloader = get_dataloader(data_dir + 'valid_set/', batch_size=args.batch_size, split='valid')
 test_dataloader, test_dataset = get_dataloader(data_dir + 'test_set/', batch_size=args.batch_size, split='test')
 
@@ -102,8 +102,8 @@ weight_decay = 0.0
 epochs = args.num_epochs
 optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
 # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.000001, steps_per_epoch=len(train_dataloader), epochs=epochs)
-# scheduler = scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[600, 900, 1500, 2000], gamma=0.1)
-scheduler = None
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1, 18, 27], gamma=0.1)
+# scheduler = None
 criteria = torch.nn.SmoothL1Loss()
 # criteria = torch.nn.MSELoss()
 # criteria = AdaptiveWingLoss()
@@ -133,10 +133,13 @@ wandb.config = {
 for epoch in range(epochs):
 	train_loss = train_epoch(model, decoder, optimizer, train_dataloader, criteria, scheduler, args.device, wandb)
 	test_loss = valid_epoch(model, decoder, test_dataloader, criteria, args.device, wandb)
-
+	
 	avg_train_loss = train_loss / len(train_dataset)
 	avg_test_loss = test_loss / len(test_dataset)
-	print(f'Epoch:{start_epoch + epoch} Training Loss:{avg_train_loss} Test Loss:{avg_test_loss}')
+	print(f'Epoch:{start_epoch + epoch} Training Loss:{avg_train_loss} Test Loss:{avg_test_loss} LR : {scheduler.get_last_lr()}')
+
+	if scheduler:
+		scheduler.step()
 
 	## debug display
 	if args.debug and epoch % 1 == 0:

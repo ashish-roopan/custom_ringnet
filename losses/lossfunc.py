@@ -202,6 +202,9 @@ def get_weight():
     weights[48:60] = 1.5
     weights[48] = 3
     weights[54] = 3
+
+    #eye points
+    weights[36:48] = 1.5
     return weights
 
 def weighted_landmark_loss(predicted_landmarks, landmarks_gt, weight=1.):

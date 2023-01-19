@@ -37,8 +37,6 @@ def train_epoch(model, decoder, optimizer, dataloader,criterion, scheduler, devi
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if scheduler:
-            scheduler.step()
         wandb.log({'train_loss': loss.item()})
     return train_loss
 
